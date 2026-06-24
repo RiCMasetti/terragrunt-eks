@@ -1,0 +1,78 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: traefik
+      # Pin to Traefik v3 chart; bump intentionally
+      version: ">=28.0.0 <30.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: traefik
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    deployment:
+      replicas: 2
+
+    serviceAccount:
+      name: traefik
+      annotations:
+        # Substituted at apply time by Flux from the cluster-vars ConfigMap
+        eks.amazonaws.com/role-arn: "${TRAEFIK_ROLE_ARN}"
+
+    service:
+      type: NodePort
+
+    ports:
+      web:
+        port: 8000
+        exposedPort: 80
+        nodePort: 30000
+      websecure:
+        port: 8443
+        exposedPort: 443
+        nodePort: 30001
+
+    # Let's Encrypt DNS-01 challenge via Route53
+    certResolvers:
+      letsencrypt:
+        email: "admin@${DOMAIN_NAME}"
+        storage: /data/acme.json
+        dnsChallenge:
+          provider: route53
+          delayBeforeCheck: 90
+          resolvers:
+            - "8.8.8.8:53"
+            - "1.1.1.1:53"
+
+    env:
+      - name: AWS_REGION
+        value: "${AWS_REGION}"
+      - name: AWS_HOSTED_ZONE_ID
+        value: "${ROUTE53_ZONE_ID}"
+
+    # Persist ACME certificates across pod restarts using the gp3 StorageClass
+    # created by the eks-addons Terraform module.
+    persistence:
+      enabled: true
+      storageClass: "gp3"
+      size: 128Mi
+
+    globalArguments:
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+
+    logs:
+      general:
+        level: INFO
