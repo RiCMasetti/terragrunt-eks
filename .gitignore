@@ -39,6 +39,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Local variables file (contains real account IDs, zone IDs, etc.)
+local.env
+
 # Terragrunt cache
 .terragrunt-cache/
 

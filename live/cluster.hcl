@@ -2,8 +2,8 @@ locals {
   cluster_name       = get_env("TF_VAR_cluster_name", "eks-cluster")
   kubernetes_version = get_env("TF_VAR_kubernetes_version", "1.32")
 
-  # Comma-separated list of EC2 instance types, e.g. "t3.medium,t3.large"
-  instance_types = split(",", get_env("TF_VAR_instance_types", "t3.medium"))
+  # JSON array of EC2 instance types, e.g. '["t3.medium","t3.large"]'
+  instance_types = jsondecode(get_env("TF_VAR_instance_types", "[\"t3.medium\"]"))
 
   node_min_size     = tonumber(get_env("TF_VAR_node_min_size", "2"))
   node_max_size     = tonumber(get_env("TF_VAR_node_max_size", "5"))

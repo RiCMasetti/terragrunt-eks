@@ -24,6 +24,41 @@ Bootstraps a production-ready EKS cluster with Terragrunt/Terraform and GitOps v
 
 ---
 
+## Running locally
+
+All variables are passed as environment variables so that the same `live/cluster.hcl` works
+both locally and in CI without any file changes.
+
+**1. Copy the example env file and fill in your values:**
+
+```bash
+cp local.env.example local.env
+# edit local.env with your account ID, region, domain, etc.
+```
+
+**2. Source it in your shell:**
+
+```bash
+source local.env
+```
+
+**3. Run Terragrunt:**
+
+```bash
+# Plan or apply a single module
+cd live/eks/vpc      && terragrunt plan
+cd live/eks/cluster  && terragrunt plan
+
+# Plan or apply the full stack in dependency order
+cd live/eks && terragrunt run-all plan
+cd live/eks && terragrunt run-all apply
+```
+
+`local.env` is listed in `.gitignore` and will never be committed. `local.env.example` is the
+committed template — keep it in sync when adding new variables.
+
+---
+
 ## Step 1 — Bootstrap the remote state backend
 
 Terraform needs an S3 bucket (state storage) and a DynamoDB table (state locking) before any
@@ -69,7 +104,7 @@ Set these in **Settings → Secrets and variables → Actions → Variables**:
 | `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::…:role/github-deploy` | IAM role assumed via OIDC |
 | `CLUSTER_NAME` | `my-cluster` | Used as a name prefix for all resources |
 | `KUBERNETES_VERSION` | `1.32` | EKS control plane version |
-| `INSTANCE_TYPES` | `t3.medium` | Comma-separated for multiple, e.g. `t3.medium,t3.large` |
+| `INSTANCE_TYPES` | `["t3.medium"]` | JSON array — plain strings cause a Terraform parse error |
 | `NODE_MIN_SIZE` | `2` | |
 | `NODE_MAX_SIZE` | `5` | |
 | `NODE_DESIRED_SIZE` | `3` | |

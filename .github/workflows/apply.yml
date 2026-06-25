@@ -43,6 +43,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
           TF_VAR_cluster_name: ${{ vars.CLUSTER_NAME }}
           TF_VAR_kubernetes_version: ${{ vars.KUBERNETES_VERSION }}
+          # Must be a JSON array, e.g. ["t3.medium"] — set the GitHub variable accordingly
           TF_VAR_instance_types: ${{ vars.INSTANCE_TYPES }}
           TF_VAR_node_min_size: ${{ vars.NODE_MIN_SIZE }}
           TF_VAR_node_max_size: ${{ vars.NODE_MAX_SIZE }}
