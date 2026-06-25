@@ -142,6 +142,52 @@ hosted zone — allow a few minutes for propagation.
 
 ---
 
+## kubectl authentication
+
+### In CI (GitHub Actions)
+
+`kubectl` never authenticates via OIDC directly. The chain is:
+
+```
+GitHub OIDC token
+  → assumes AWS_DEPLOY_ROLE_ARN       (configure-aws-credentials step)
+    → aws eks update-kubeconfig       (writes kubeconfig with exec plugin)
+      → kubectl                       (calls aws eks get-token using env creds)
+        → EKS API server
+```
+
+This works automatically because EKS grants `system:masters` to whichever IAM entity
+**created the cluster**. Since Terraform runs as `AWS_DEPLOY_ROLE_ARN`, that role is the
+cluster creator and has full kubectl access with no additional config.
+
+### Locally (first-time setup)
+
+Your local IAM identity is not the cluster creator, so it has no kubernetes access by default.
+Add it once after the cluster has been applied:
+
+```bash
+# Update your local kubeconfig
+aws eks update-kubeconfig --name eks-cluster --region eu-central-1
+
+# Grant your IAM user/role cluster-admin access via EKS Access Entries
+aws eks create-access-entry \
+  --cluster-name eks-cluster \
+  --principal-arn arn:aws:iam::<account-id>:user/<your-iam-user> \
+  --type STANDARD
+
+aws eks associate-access-policy \
+  --cluster-name eks-cluster \
+  --principal-arn arn:aws:iam::<account-id>:user/<your-iam-user> \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster
+```
+
+EKS Access Entries are the modern replacement for editing the `aws-auth` ConfigMap (available
+on EKS 1.23+). A bad edit to `aws-auth` can lock everyone out of the cluster; Access Entries
+are managed via the AWS API and are safe to use.
+
+---
+
 ## Project layout
 
 ```

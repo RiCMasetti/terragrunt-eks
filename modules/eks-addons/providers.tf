@@ -1,13 +1,4 @@
-data "aws_eks_cluster" "this" {
-  name = var.cluster_name
-}
-
-data "aws_eks_cluster_auth" "this" {
-  name = var.cluster_name
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.this.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.this.token
-}
+# Kubernetes resources (StorageClass, Namespaces, cluster-vars ConfigMap) are
+# created imperatively via kubectl in the GitHub Actions apply workflow.
+# Keeping the kubernetes provider out of this module avoids provider
+# initialisation failures during `run-all plan` on an unapplied cluster.

@@ -61,6 +61,62 @@ jobs:
             --name "${{ vars.CLUSTER_NAME }}" \
             --region "${{ vars.AWS_DEFAULT_REGION }}"
 
+      - name: Create gp3 StorageClass
+        # Sets gp3 as the default StorageClass (used by Traefik for ACME cert storage).
+        # Applied imperatively so it exists before Flux and Traefik start up.
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: gp3
+            annotations:
+              storageclass.kubernetes.io/is-default-class: "true"
+          provisioner: ebs.csi.aws.com
+          volumeBindingMode: WaitForFirstConsumer
+          allowVolumeExpansion: true
+          parameters:
+            type: gp3
+            encrypted: "true"
+          EOF
+          kubectl patch storageclass gp2 \
+            -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' \
+            --ignore-not-found
+
+      - name: Create namespaces and Flux cluster-vars ConfigMap
+        # flux-system is created here so the ConfigMap exists before flux bootstrap.
+        # Flux bootstrap is idempotent and won't fail on an existing namespace.
+        # The ConfigMap is used by Flux postBuild variable substitution in the
+        # apps Kustomization to inject the Traefik IRSA role ARN and DNS config.
+        run: |
+          TRAEFIK_ROLE_ARN=$(cd live/eks/addons && terragrunt output -raw traefik_role_arn)
+
+          kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace traefik     --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create configmap cluster-vars \
+            --namespace flux-system \
+            --from-literal=TRAEFIK_ROLE_ARN="$TRAEFIK_ROLE_ARN" \
+            --from-literal=AWS_REGION="${{ vars.AWS_DEFAULT_REGION }}" \
+            --from-literal=DOMAIN_NAME="${{ vars.DOMAIN_NAME }}" \
+            --from-literal=ROUTE53_ZONE_ID="${{ vars.ROUTE53_ZONE_ID }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+          TF_VAR_cluster_name: ${{ vars.CLUSTER_NAME }}
+          TF_VAR_kubernetes_version: ${{ vars.KUBERNETES_VERSION }}
+          TF_VAR_instance_types: ${{ vars.INSTANCE_TYPES }}
+          TF_VAR_node_min_size: ${{ vars.NODE_MIN_SIZE }}
+          TF_VAR_node_max_size: ${{ vars.NODE_MAX_SIZE }}
+          TF_VAR_node_desired_size: ${{ vars.NODE_DESIRED_SIZE }}
+          TF_VAR_vpc_cidr: ${{ vars.VPC_CIDR }}
+          TF_VAR_single_nat_gateway: ${{ vars.SINGLE_NAT_GATEWAY }}
+          TF_VAR_domain_name: ${{ vars.DOMAIN_NAME }}
+          TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
+          TF_VAR_github_org: ${{ vars.GITHUB_ORG }}
+          TF_VAR_github_repo: ${{ vars.GITHUB_REPO }}
+
       - name: Install Flux CLI
         run: |
           curl -s https://fluxcd.io/install.sh | bash

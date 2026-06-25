@@ -15,16 +15,7 @@ variable "oidc_provider_url" {
   description = "OIDC provider URL without the https:// scheme"
 }
 
-variable "aws_region" {
-  type = string
-}
-
-variable "domain_name" {
-  type        = string
-  description = "Primary domain managed in Route53, used by Traefik cert resolver"
-}
-
 variable "route53_zone_id" {
   type        = string
-  description = "Route53 hosted zone ID for the domain"
+  description = "Route53 hosted zone ID — scopes the Traefik IAM policy to this zone"
 }
