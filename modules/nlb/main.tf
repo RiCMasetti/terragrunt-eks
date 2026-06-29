@@ -100,7 +100,7 @@ resource "aws_vpc_security_group_ingress_rule" "traefik_http" {
   to_port           = var.traefik_nodeport_http
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
-  description       = "NLB → Traefik HTTP NodePort"
+  description       = "NLB - Traefik HTTP NodePort"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "traefik_https" {
@@ -109,5 +109,5 @@ resource "aws_vpc_security_group_ingress_rule" "traefik_https" {
   to_port           = var.traefik_nodeport_https
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
-  description       = "NLB → Traefik HTTPS NodePort"
+  description       = "NLB - Traefik HTTPS NodePort"
 }

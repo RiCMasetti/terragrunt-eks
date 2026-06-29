@@ -54,6 +54,24 @@ cd live/eks && terragrunt run-all plan
 cd live/eks && terragrunt run-all apply
 ```
 
+**4. Finish cluster setup (StorageClass, Flux bootstrap, Traefik):**
+
+After `terragrunt apply` completes, run the post-apply script to mirror what the CI pipeline
+does — creates the gp3 StorageClass, the Flux namespaces and cluster-vars ConfigMap, and
+bootstraps Flux which then installs Traefik:
+
+```bash
+# Full setup including Flux bootstrap (requires GITHUB_TOKEN)
+export GITHUB_TOKEN=ghp_...
+./scripts/post-apply.sh
+
+# Stop before Flux bootstrap (quick smoke-test of the k8s resources only)
+./scripts/post-apply.sh --skip-flux
+```
+
+The script validates that `local.env` is sourced, checks cluster access, and exits with a clear
+error message if anything is missing.
+
 `local.env` is listed in `.gitignore` and will never be committed. `local.env.example` is the
 committed template — keep it in sync when adding new variables.
 
@@ -162,29 +180,75 @@ cluster creator and has full kubectl access with no additional config.
 
 ### Locally (first-time setup)
 
-Your local IAM identity is not the cluster creator, so it has no kubernetes access by default.
-Add it once after the cluster has been applied:
+**1. Update your kubeconfig:**
 
 ```bash
-# Update your local kubeconfig
 aws eks update-kubeconfig --name eks-cluster --region eu-central-1
+```
 
-# Grant your IAM user/role cluster-admin access via EKS Access Entries
+**2. Check which IAM identity is active in your shell:**
+
+```bash
+aws sts get-caller-identity
+```
+
+**Case A — same identity that ran `terragrunt apply`**
+
+EKS automatically grants `system:masters` to the cluster creator. If `kubectl` still fails with
+"server has asked for credentials", the shell is missing the AWS credentials. Source `local.env`
+first and retry:
+
+```bash
+source local.env
+kubectl get nodes -o wide
+```
+
+**Case B — different identity (e.g. default profile, different terminal)**
+
+That identity has no RBAC entry yet. Add it using the credentials that created the cluster
+(i.e. with `local.env` sourced):
+
+```bash
+TARGET_ARN=$(aws sts get-caller-identity --query Arn --output text)
+
 aws eks create-access-entry \
   --cluster-name eks-cluster \
-  --principal-arn arn:aws:iam::<account-id>:user/<your-iam-user> \
+  --region eu-central-1 \
+  --principal-arn "$TARGET_ARN" \
   --type STANDARD
 
 aws eks associate-access-policy \
   --cluster-name eks-cluster \
-  --principal-arn arn:aws:iam::<account-id>:user/<your-iam-user> \
+  --region eu-central-1 \
+  --principal-arn "$TARGET_ARN" \
   --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
   --access-scope type=cluster
 ```
 
+No need to update kubeconfig again — `kubectl get nodes` will work immediately after.
+
 EKS Access Entries are the modern replacement for editing the `aws-auth` ConfigMap (available
 on EKS 1.23+). A bad edit to `aws-auth` can lock everyone out of the cluster; Access Entries
 are managed via the AWS API and are safe to use.
+
+**Tip — avoid the credentials-not-found problem permanently**
+
+Instead of exporting raw keys in `local.env`, use a named profile in `~/.aws/credentials`:
+
+```ini
+[eks-local]
+aws_access_key_id     = AKIA…
+aws_secret_access_key = …
+```
+
+Then in `local.env`:
+
+```bash
+export AWS_PROFILE="eks-local"
+```
+
+With a named profile, `aws eks get-token` always picks up the right credentials regardless of
+which terminal you are in.
 
 ---
 
