@@ -1,6 +1,37 @@
-# terragrunt-eks
+# EKS GitOps Platform Reference
 
-Bootstraps a production-ready EKS cluster with Terragrunt/Terraform and GitOps via Flux CD.
+Reference implementation for bootstrapping an Amazon EKS platform with
+Terragrunt/Terraform and operating cluster applications through Flux CD.
+
+> **Status:** Experimental infrastructure reference. It creates billable AWS
+> resources and should be reviewed, planned, and adapted to the target account's
+> security, availability, networking, and cost requirements before use.
+
+## What This Project Demonstrates
+
+- Layered Infrastructure as Code with reusable Terraform modules and Terragrunt
+  dependency orchestration.
+- GitHub Actions authentication to AWS through OIDC instead of long-lived access
+  keys.
+- A reviewed plan/apply lifecycle with a protected production environment.
+- Flux CD bootstrap, Helm-based Traefik delivery, IRSA, Route53 DNS-01, and EKS
+  access management.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    PR[Pull request] --> PLAN[Terragrunt plan]
+    MAIN[Merge to main] --> GATE[Production approval]
+    GATE --> APPLY[Terragrunt apply]
+    APPLY --> VPC[VPC and subnets]
+    APPLY --> EKS[EKS and managed nodes]
+    APPLY --> ADDONS[EKS add-ons and IRSA]
+    APPLY --> NLB[Network Load Balancer]
+    APPLY --> FLUX[Flux bootstrap]
+    FLUX --> TRAEFIK[Traefik HelmRelease]
+    TRAEFIK --> R53[Route53 DNS-01]
+```
 
 ## What gets created
 
@@ -21,6 +52,18 @@ Bootstraps a production-ready EKS cluster with Terragrunt/Terraform and GitOps v
 - Terraform >= 1.9
 - Terragrunt >= 0.67
 - Flux CLI (for local troubleshooting)
+
+### Cost and Safety
+
+- Run `terragrunt plan` and review every resource before applying.
+- EKS control planes, worker nodes, NAT gateways, load balancers, storage, and
+  data transfer can all generate AWS charges.
+- The bootstrap state bucket and lock table are protected from accidental
+  destruction; retain their local bootstrap state or document the import path.
+- Use a dedicated non-production account for experimentation and least-privilege
+  IAM roles for local and CI access.
+- This repository does not replace an account-specific security, backup,
+  disaster-recovery, or cost review.
 
 ---
 
@@ -275,3 +318,7 @@ gitops/
   plan.yml               PR → terragrunt run-all plan
   apply.yml              Merge to main → approval gate → apply + flux bootstrap
 ```
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
